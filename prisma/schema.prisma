@@ -6,10 +6,125 @@ datasource db {
   provider = "postgresql"
 }
 
-model Electeur{
-    id  String  @id @default(uuid())
-    nom  String 
-    prenom String
-    telephone String @unique
-    aVote Boolean @defautl(false)
+model Electeur {
+  id          String        @id @default(uuid())
+  nom         String
+  prenom      String
+  telephone   String        @unique
+  aVote       Boolean       @default(false)
+  bureauVoteId String?
+  bureauVote  BureauDeVote? @relation(fields: [bureauVoteId], references: [id])
+}
+
+enum ModeVote {
+  ELECTRONIQUE
+  PHYSIQUE
+  LES_DEUX
+}
+
+enum StatutScrutin {
+  CREE
+  OUVERT
+  FERME
+}
+
+model Scrutin {
+  id                 String             @id @default(uuid())
+  statut             StatutScrutin      @default(CREE)
+  modeVote           ModeVote
+  dateOuverture      DateTime?
+  dateFermeture      DateTime?
+  candidats          Candidat[]
+  bulletins          Bulletin[]
+  resultatsPhysiques ResultatPhysique[]
+}
+
+model Candidat {
+  id                 String             @id @default(uuid())
+  nomSyndicat        String
+  description        String?
+  scrutinId          String
+  scrutin            Scrutin            @relation(fields: [scrutinId], references: [id])
+  bulletins          Bulletin[]
+  resultatsPhysiques ResultatPhysique[]
+}
+
+model Bulletin {
+  id         String   @id @default(uuid())
+  scrutinId  String
+  scrutin    Scrutin  @relation(fields: [scrutinId], references: [id])
+  candidatId String
+  candidat   Candidat @relation(fields: [candidatId], references: [id])
+}
+
+model ResultatPhysique {
+  id           String       @id @default(uuid())
+  scrutinId    String
+  scrutin      Scrutin      @relation(fields: [scrutinId], references: [id])
+  bureauVoteId String
+  bureauVote   BureauDeVote @relation(fields: [bureauVoteId], references: [id])
+  candidatId   String
+  candidat     Candidat     @relation(fields: [candidatId], references: [id])
+  nombreVoix   Int          @default(0)
+}
+
+model Administrateur {
+  id             String @id @default(uuid())
+  identifiant    String @unique
+  motDePasseHash String
+}
+
+model Region {
+  id      String   @id @default(uuid())
+  nom     String
+  cercles Cercle[]
+}
+
+model Cercle {
+  id              String           @id @default(uuid())
+  nom             String
+  regionId        String
+  region          Region           @relation(fields: [regionId], references: [id])
+  arrondissements Arrondissement[]
+}
+
+model Arrondissement {
+  id       String    @id @default(uuid())
+  nom      String
+  cercleId String
+  cercle   Cercle    @relation(fields: [cercleId], references: [id])
+  communes Commune[]
+}
+
+model Commune {
+  id               String         @id @default(uuid())
+  nom              String
+  arrondissementId String
+  arrondissement   Arrondissement @relation(fields: [arrondissementId], references: [id])
+  vfqs             Vfq[]
+}
+
+model Vfq {
+  id            String         @id @default(uuid())
+  nom           String
+  communeId     String
+  commune       Commune        @relation(fields: [communeId], references: [id])
+  centresDeVote CentreDeVote[]
+}
+
+model CentreDeVote {
+  id            String         @id @default(uuid())
+  nom           String
+  vfqId         String
+  vfq           Vfq            @relation(fields: [vfqId], references: [id])
+  bureauxDeVote BureauDeVote[]
+}
+
+model BureauDeVote {
+  id                 String             @id @default(uuid())
+  nom                String
+  centreDeVoteId     String
+  centreDeVote       CentreDeVote       @relation(fields: [centreDeVoteId], references: [id])
+  electeurs          Electeur[]
+  resultatsPhysiques ResultatPhysique[]
 }
