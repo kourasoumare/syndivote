@@ -1,0 +1,15 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Electeur{
+    id  String  @id @default(uuid())
+    nom  String 
+    prenom String
+    telephone String @unique
+    aVote Boolean @defautl(false)
+}
