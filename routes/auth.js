@@ -69,4 +69,71 @@ router.post("/otp/demander", async (req, res) => {
   return res.json({ message: "Un code de vérification a été envoyé par SMS." });
 });
 
+
+const jwt = require("jsonwebtoken");
+
+const MAX_TENTATIVES = 5;
+
+router.post("/otp/valider", async (req, res) => {
+  const { telephone, code, scrutinId } = req.body;
+
+  if (!telephone || !code || !scrutinId) {
+    return res.status(400).json({ erreur: "Téléphone, code et scrutin requis." });
+  }
+
+  // 1. Retrouver l'électeur
+  const electeur = await prisma.electeur.findUnique({ where: { telephone } });
+  if (!electeur) {
+    return res.status(404).json({ erreur: "Ce numéro n'est pas reconnu." });
+  }
+
+  // 2. Retrouver le dernier OTP actif (non utilisé) de cet électeur
+  const otp = await prisma.otpCode.findFirst({
+    where: { electeurId: electeur.id, usedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!otp) {
+    return res.status(400).json({ erreur: "Aucun code actif. Veuillez en redemander un." });
+  }
+
+  // 3. Vérifier l'expiration
+  if (otp.expiresAt < new Date()) {
+    return res.status(400).json({ erreur: "Ce code a expiré. Veuillez en redemander un." });
+  }
+
+  // 4. Vérifier le nombre de tentatives
+  if (otp.attempts >= MAX_TENTATIVES) {
+    return res.status(403).json({ erreur: "Trop de tentatives. Veuillez redemander un nouveau code." });
+  }
+
+  // 5. Comparer le code fourni avec le hash stocké
+  const codeValide = await bcrypt.compare(code, otp.codeHash);
+
+  if (!codeValide) {
+    await prisma.otpCode.update({
+      where: { id: otp.id },
+      data: { attempts: { increment: 1 } },
+    });
+    return res.status(400).json({ erreur: "Code incorrect." });
+  }
+
+  // 6. Marquer l'OTP comme utilisé (ne peut plus jamais resservir)
+  await prisma.otpCode.update({
+    where: { id: otp.id },
+    data: { usedAt: new Date() },
+  });
+
+  // 7. Délivrer un jeton temporaire pour la suite du parcours de vote
+  const token = jwt.sign(
+    { electeurId: electeur.id, scrutinId },
+    process.env.JWT_SECRET,
+    { expiresIn: "10m" }
+  );
+
+  return res.json({ message: "Code validé.", token });
+});
+
+
+
 module.exports = router;
