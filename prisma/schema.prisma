@@ -6,16 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-model Electeur {
-  id          String        @id @default(uuid())
-  nom         String
-  prenom      String
-  telephone   String        @unique
-  aVote       Boolean       @default(false)
-  bureauVoteId String?
-  bureauVote  BureauDeVote? @relation(fields: [bureauVoteId], references: [id])
-}
-
 enum ModeVote {
   ELECTRONIQUE
   PHYSIQUE
@@ -24,107 +14,301 @@ enum ModeVote {
 
 enum StatutScrutin {
   CREE
+  PROGRAMME
   OUVERT
   FERME
+  RESULTATS_PROVISOIRES
+  RESULTATS_DEFINITIFS
+  PUBLIE
+}
+
+enum CanalVote {
+  TELEPHONE
+  PHYSIQUE
+}
+
+enum TypeTripartite {
+  GOUVERNEMENT
+  PATRONAT
+  CENTRALE_SYNDICALE
+}
+
+model Electeur {
+  id        String @id @default(uuid())
+  nom       String
+  prenom    String
+  telephone String @unique
+
+  inscriptions   InscriptionElectorale[]
+  participations Participation[]
+  otpCodes       OtpCode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ListeElectorale {
+  id  String @id @default(uuid())
+  nom String
+
+  inscriptions InscriptionElectorale[]
+  scrutins     Scrutin[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InscriptionElectorale {
+  id String @id @default(uuid())
+
+  listeElectoraleId String
+  electeurId        String
+  bureauVoteId      String?
+
+  listeElectorale ListeElectorale @relation(fields: [listeElectoraleId], references: [id])
+  electeur        Electeur        @relation(fields: [electeurId], references: [id])
+  bureauVote      BureauDeVote?   @relation(fields: [bureauVoteId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([listeElectoraleId, electeurId])
 }
 
 model Scrutin {
-  id                 String             @id @default(uuid())
-  statut             StatutScrutin      @default(CREE)
-  modeVote           ModeVote
-  dateOuverture      DateTime?
-  dateFermeture      DateTime?
+  id  String @id @default(uuid())
+  nom String
+
+  statut        StatutScrutin @default(CREE)
+  modeVote      ModeVote
+  dateOuverture DateTime?
+  dateFermeture DateTime?
+
+  listeElectoraleId String
+
+  listeElectorale ListeElectorale @relation(fields: [listeElectoraleId], references: [id])
+
   candidats          Candidat[]
   bulletins          Bulletin[]
+  participations     Participation[]
   resultatsPhysiques ResultatPhysique[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Participation {
+  id String @id @default(uuid())
+
+  electeurId String
+  scrutinId  String
+
+  canal   CanalVote
+  votedAt DateTime  @default(now())
+
+  electeur Electeur @relation(fields: [electeurId], references: [id])
+  scrutin  Scrutin  @relation(fields: [scrutinId], references: [id])
+
+  @@unique([electeurId, scrutinId])
+  @@index([scrutinId])
+}
+
+model Syndicat {
+  id          String  @id @default(uuid())
+  nom         String  @unique
+  description String?
+  actif       Boolean @default(true)
+
+  candidatures Candidat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Candidat {
-  id                 String             @id @default(uuid())
-  nomSyndicat        String
-  description        String?
+  id                 String  @id @default(uuid())
   scrutinId          String
-  scrutin            Scrutin            @relation(fields: [scrutinId], references: [id])
+  syndicatId         String
+  descriptionScrutin String?
+
+  scrutin  Scrutin  @relation(fields: [scrutinId], references: [id])
+  syndicat Syndicat @relation(fields: [syndicatId], references: [id])
+
   bulletins          Bulletin[]
   resultatsPhysiques ResultatPhysique[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scrutinId, syndicatId])
 }
 
 model Bulletin {
-  id         String   @id @default(uuid())
+  id String @id @default(uuid())
+
   scrutinId  String
-  scrutin    Scrutin  @relation(fields: [scrutinId], references: [id])
   candidatId String
-  candidat   Candidat @relation(fields: [candidatId], references: [id])
+
+  scrutin  Scrutin  @relation(fields: [scrutinId], references: [id])
+  candidat Candidat @relation(fields: [candidatId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([scrutinId])
+  @@index([candidatId])
 }
 
 model ResultatPhysique {
-  id           String       @id @default(uuid())
+  id String @id @default(uuid())
+
   scrutinId    String
-  scrutin      Scrutin      @relation(fields: [scrutinId], references: [id])
   bureauVoteId String
-  bureauVote   BureauDeVote @relation(fields: [bureauVoteId], references: [id])
   candidatId   String
-  candidat     Candidat     @relation(fields: [candidatId], references: [id])
-  nombreVoix   Int          @default(0)
+
+  nombreVoix Int @default(0)
+
+  scrutin    Scrutin      @relation(fields: [scrutinId], references: [id])
+  bureauVote BureauDeVote @relation(fields: [bureauVoteId], references: [id])
+  candidat   Candidat     @relation(fields: [candidatId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scrutinId, bureauVoteId, candidatId])
+}
+
+model OtpCode {
+  id String @id @default(uuid())
+
+  electeurId String
+  codeHash   String
+
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int       @default(0)
+
+  createdAt DateTime @default(now())
+
+  electeur Electeur @relation(fields: [electeurId], references: [id])
+
+  @@index([electeurId])
 }
 
 model Administrateur {
   id             String @id @default(uuid())
   identifiant    String @unique
   motDePasseHash String
+
+  logs AuditLog[]
+
+  createdAt DateTime @default(now())
+}
+
+model Tripartite {
+  id String @id @default(uuid())
+
+  type            TypeTripartite
+  nomOrganisation String
+
+  identifiant    String  @unique
+  motDePasseHash String
+  actif          Boolean @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  administrateurId String
+  action           String
+  entite           String
+  entiteId         String?
+  details          Json?
+
+  createdAt DateTime @default(now())
+
+  administrateur Administrateur @relation(fields: [administrateurId], references: [id])
+
+  @@index([administrateurId])
+  @@index([createdAt])
 }
 
 model Region {
-  id      String   @id @default(uuid())
-  nom     String
+  id  String @id @default(uuid())
+  nom String @unique
+
   cercles Cercle[]
 }
 
 model Cercle {
-  id              String           @id @default(uuid())
-  nom             String
-  regionId        String
-  region          Region           @relation(fields: [regionId], references: [id])
+  id  String @id @default(uuid())
+  nom String
+
+  regionId String
+  region   Region @relation(fields: [regionId], references: [id])
+
   arrondissements Arrondissement[]
+
+  @@unique([regionId, nom])
 }
 
 model Arrondissement {
-  id       String    @id @default(uuid())
-  nom      String
+  id  String @id @default(uuid())
+  nom String
+
   cercleId String
-  cercle   Cercle    @relation(fields: [cercleId], references: [id])
+  cercle   Cercle @relation(fields: [cercleId], references: [id])
+
   communes Commune[]
+
+  @@unique([cercleId, nom])
 }
 
 model Commune {
-  id               String         @id @default(uuid())
-  nom              String
+  id  String @id @default(uuid())
+  nom String
+
   arrondissementId String
   arrondissement   Arrondissement @relation(fields: [arrondissementId], references: [id])
-  vfqs             Vfq[]
+
+  vfqs Vfq[]
+
+  @@unique([arrondissementId, nom])
 }
 
 model Vfq {
-  id            String         @id @default(uuid())
-  nom           String
-  communeId     String
-  commune       Commune        @relation(fields: [communeId], references: [id])
+  id  String @id @default(uuid())
+  nom String
+
+  communeId String
+  commune   Commune @relation(fields: [communeId], references: [id])
+
   centresDeVote CentreDeVote[]
+
+  @@unique([communeId, nom])
 }
 
 model CentreDeVote {
-  id            String         @id @default(uuid())
-  nom           String
-  vfqId         String
-  vfq           Vfq            @relation(fields: [vfqId], references: [id])
+  id  String @id @default(uuid())
+  nom String
+
+  vfqId String
+  vfq   Vfq @relation(fields: [vfqId], references: [id])
+
   bureauxDeVote BureauDeVote[]
+
+  @@unique([vfqId, nom])
 }
 
 model BureauDeVote {
-  id                 String             @id @default(uuid())
-  nom                String
-  centreDeVoteId     String
-  centreDeVote       CentreDeVote       @relation(fields: [centreDeVoteId], references: [id])
-  electeurs          Electeur[]
+  id  String @id @default(uuid())
+  nom String
+
+  centreDeVoteId String
+  centreDeVote   CentreDeVote @relation(fields: [centreDeVoteId], references: [id])
+
+  inscriptions       InscriptionElectorale[]
   resultatsPhysiques ResultatPhysique[]
+
+  @@unique([centreDeVoteId, nom])
 }
