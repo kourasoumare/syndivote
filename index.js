@@ -5,6 +5,8 @@ const app = express();
 app.use(express.json());
 
 app.use("/auth", require("./routes/auth"));
+app.use("/scrutins", require("./routes/vote"));
+app.use("/admin", require("./routes/admin"));
 
 
 const PORT = process.env.PORT || 3000;
