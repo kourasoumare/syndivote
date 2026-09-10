@@ -7,6 +7,7 @@ app.use(express.json());
 app.use("/auth", require("./routes/auth"));
 app.use("/scrutins", require("./routes/vote"));
 app.use("/admin", require("./routes/admin"));
+app.use("/admin", require("./routes/geographie"));
 
 
 const PORT = process.env.PORT || 3000;

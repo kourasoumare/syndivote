@@ -63,15 +63,18 @@ model InscriptionElectorale {
 
   listeElectoraleId String
   electeurId        String
+  vfqId             String
   bureauVoteId      String?
 
   listeElectorale ListeElectorale @relation(fields: [listeElectoraleId], references: [id])
   electeur        Electeur        @relation(fields: [electeurId], references: [id])
+  vfq             Vfq             @relation(fields: [vfqId], references: [id])
   bureauVote      BureauDeVote?   @relation(fields: [bureauVoteId], references: [id])
 
   createdAt DateTime @default(now())
 
   @@unique([listeElectoraleId, electeurId])
+  @@index([vfqId])
 }
 
 model Scrutin {
@@ -284,6 +287,7 @@ model Vfq {
   commune   Commune @relation(fields: [communeId], references: [id])
 
   centresDeVote CentreDeVote[]
+  inscriptions   InscriptionElectorale[]
 
   @@unique([communeId, nom])
 }

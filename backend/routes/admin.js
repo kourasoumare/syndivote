@@ -70,20 +70,27 @@ router.post("/listes-electorales", async (req, res) => {
 // Inscrire un électeur sur une liste électorale
 router.post("/listes-electorales/:listeElectoraleId/inscriptions", async (req, res) => {
   const { listeElectoraleId } = req.params;
-  const { electeurId, bureauVoteId } = req.body;
+  const { electeurId, vfqId, bureauVoteId } = req.body;
 
   if (!electeurId) {
     return res.status(400).json({ erreur: "L'électeur est requis." });
   }
 
+  if (!vfqId) {
+    return res.status(400).json({ erreur: "La localité (Vfq) est requise." });
+  }
+
   try {
     const inscription = await prisma.inscriptionElectorale.create({
-      data: { listeElectoraleId, electeurId, bureauVoteId: bureauVoteId || null },
+      data: { listeElectoraleId, electeurId, vfqId, bureauVoteId: bureauVoteId || null },
     });
     return res.status(201).json(inscription);
   } catch (err) {
     if (err.code === "P2002") {
       return res.status(409).json({ erreur: "Cet électeur est déjà inscrit sur cette liste." });
+    }
+    if (err.code === "P2003") {
+      return res.status(400).json({ erreur: "Liste électorale, électeur, Vfq ou bureau de vote invalide." });
     }
     throw err;
   }
